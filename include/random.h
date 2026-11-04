@@ -3,28 +3,24 @@
 
 // The number 1103515245 comes from the example implementation of rand and srand
 // in the ISO C standard.
-#define ISO_RANDOMIZE1(val)(1103515245 * (val) + 24691)
-#define ISO_RANDOMIZE2(val)(1103515245 * (val) + 12345)
+#define ISO_RANDOMIZE1(val) (1103515245 * (val) + 24691)
+#define ISO_RANDOMIZE2(val) (1103515245 * (val) + 12345)
 
-/* Some functions have been added to support HQ_RANDOM.
+/* Some functions have been added to support Expansion's RNG implementation.
 *
-* If using HQ_RANDOM, you cannot call Random() in interrupt handlers safely.
-* AdvanceRandom() is provided to handle burning numbers in the VBlank handler
-* if you choose to do that, and can be used regardless of HQ_RANDOM setting.
+* LocalRandom(*val) provides a higher-quality replacement for uses of
+* ISO_RANDOMIZE in vanilla Emerald. You can use LocalRandomSeed(u32) to
+* create a local state.
+*
+* It is no longer possible to call Random() in interrupt handlers safely.
+* AdvanceRandom() is provided to handle burning numbers in VBlank handlers.
 * If you need to use random numbers in the VBlank handler, a local state
 * should be used instead.
 *
-* LocalRandom(*val) allows you to have local random states that are the same
-* type as the global states regardless of HQ_RANDOM setting, which is useful
-* if you want to be able to set them from or assign them to gRngValue.
-* LocalRandomSeed(u32) returns a properly seeded rng_value_t.
-*
-* Random2_32() was added to HQ_RANDOM because the output of the generator is
-* always 32 bits and Random()/Random2() are just wrappers in that mode. It is
-* also available in non-HQ mode for consistency.
+* Random2_32() was added, even though it is not used directly, because the
+* underlying RNG always outputs 32 bits.
 */
 
-#if HQ_RANDOM == TRUE
 struct Sfc32State {
     u32 a;
     u32 b;
@@ -34,7 +30,7 @@ struct Sfc32State {
 
 typedef struct Sfc32State rng_value_t;
 
-#define RNG_VALUE_EMPTY {}
+#define RNG_VALUE_EMPTY {0}
 
 // Calling this function directly is discouraged.
 // Use LocalRandom() instead.
@@ -47,9 +43,14 @@ static inline u32 _SFC32_Next(struct Sfc32State *state)
     return result;
 }
 
+static inline u32 LocalRandom32(rng_value_t *val)
+{
+    return _SFC32_Next(val);
+}
+
 static inline u16 LocalRandom(rng_value_t *val)
 {
-    return _SFC32_Next(val) >> 16;
+    return LocalRandom32(val) >> 16;
 }
 
 u32 Random32(void);
@@ -70,40 +71,6 @@ static inline u16 Random2(void)
 }
 
 void AdvanceRandom(void);
-#else
-typedef u32 rng_value_t;
-
-#define RNG_VALUE_EMPTY 0
-
-//Returns a 16-bit pseudorandom number
-u16 Random(void);
-u16 Random2(void);
-
-//Sets the initial seed value of the pseudorandom number generator
-void SeedRng(u16 seed);
-void SeedRng2(u16 seed);
-
-//Returns a 32-bit pseudorandom number
-#define Random32() (Random() | (Random() << 16))
-#define Random2_32() (Random2() | (Random2() << 16))
-
-static inline u16 LocalRandom(rng_value_t *val)
-{
-    *val = ISO_RANDOMIZE1(*val);
-    return *val >> 16;
-}
-
-static inline void AdvanceRandom(void)
-{
-    Random();
-}
-
-static inline rng_value_t LocalRandomSeed(u32 seed)
-{
-    return seed;
-}
-
-#endif
 
 extern rng_value_t gRngValue;
 extern rng_value_t gRng2Value;
@@ -160,11 +127,11 @@ enum RandomTag
     RNG_NONE,
     RNG_ACCURACY,
     RNG_CONFUSION,
+    RNG_CONFUSION_TURNS,
     RNG_CRITICAL_HIT,
     RNG_CURSED_BODY,
     RNG_CUTE_CHARM,
     RNG_DAMAGE_MODIFIER,
-    RNG_DIRE_CLAW,
     RNG_EFFECT_SPORE,
     RNG_FLAME_BODY,
     RNG_FORCE_RANDOM_SWITCH,
@@ -179,34 +146,123 @@ enum RandomTag
     RNG_INFATUATION,
     RNG_LOADED_DICE,
     RNG_METRONOME,
+    RNG_MOODY_INCREASE,
+    RNG_MOODY_DECREASE,
+    RNG_RANDOM_FROM_LIST,
     RNG_PARALYSIS,
     RNG_PICKUP,
     RNG_POISON_POINT,
     RNG_POISON_TOUCH,
     RNG_RAMPAGE_TURNS,
+    RNG_RANDOM_STAT_UP,
     RNG_SECONDARY_EFFECT,
     RNG_SECONDARY_EFFECT_2,
     RNG_SECONDARY_EFFECT_3,
     RNG_SHED_SKIN,
     RNG_SLEEP_TURNS,
+    RNG_TAUNT_TURNS,
+    RNG_ENCORE_TURNS,
     RNG_SPEED_TIE,
     RNG_STATIC,
     RNG_STENCH,
     RNG_TOXIC_CHAIN,
-    RNG_TRI_ATTACK,
     RNG_QUICK_DRAW,
     RNG_QUICK_CLAW,
     RNG_TRACE,
+    RNG_FOREWARN,
     RNG_FICKLE_BEAM,
     RNG_AI_ABILITY,
+    RNG_AI_SCORE_TIE_DOUBLES_MOVE,
+    RNG_AI_SCORE_TIE_DOUBLES_TARGET,
+    RNG_AI_SCORE_TIE_SINGLES,
     RNG_AI_SWITCH_HASBADODDS,
+    RNG_AI_SWITCH_BADLY_POISONED,
+    RNG_AI_SWITCH_CURSED,
+    RNG_AI_SWITCH_NIGHTMARE,
+    RNG_AI_SWITCH_SEEDED,
+    RNG_AI_SWITCH_YAWN,
+    RNG_AI_SWITCH_PERISH_SONG,
+    RNG_AI_SWITCH_INFATUATION,
+    RNG_AI_SWITCH_ABSORBING,
+    RNG_AI_SWITCH_ABSORBING_STAY_IN,
+    RNG_AI_SWITCH_NATURAL_CURE,
+    RNG_AI_SWITCH_REGENERATOR,
+    RNG_AI_SWITCH_INTIMIDATE,
+    RNG_AI_SWITCH_ENCORE,
+    RNG_AI_SWITCH_CHOICE_LOCKED,
+    RNG_AI_SWITCH_STATS_LOWERED,
+    RNG_AI_SWITCH_SE_DEFENSIVE,
+    RNG_AI_SWITCH_TRUANT,
     RNG_AI_SWITCH_WONDER_GUARD,
+    RNG_AI_SWITCH_TRAPPER,
+    RNG_AI_SWITCH_FREE_TURN,
+    RNG_AI_SWITCH_ALL_MOVES_BAD,
+    RNG_AI_SWITCH_DYN_FUNC,
+    RNG_AI_CONSERVE_TERA,
+    RNG_AI_SWITCH_ALL_SCORES_BAD,
+    RNG_AI_SWITCH_ABSORBING_HIDDEN_POWER,
+    RNG_AI_SWITCH_WISH_PASSING,
+    RNG_AI_SWITCH_LOSES_1V1,
+    RNG_AI_PP_STALL_DISREGARD_MOVE,
+    RNG_AI_SUCKER_PUNCH,
+    RNG_AI_CONSIDER_EXPLOSION,
+    RNG_AI_FINAL_GAMBIT,
+    RNG_AI_SHOULD_PIVOT_BREAK_SASH,
     RNG_SHELL_SIDE_ARM,
+    RNG_RANDOM_TARGET,
+    RNG_AI_PREDICT_ABILITY,
+    RNG_AI_PREDICT_SWITCH,
+    RNG_AI_PREDICT_MOVE,
+    RNG_AI_STATUS_FOCUS_PUNCH,
+    RNG_AI_BOOST_INTO_HAZE,
+    RNG_AI_SHOULD_RECOVER,
+    RNG_AI_PRIORITIZE_LAST_CHANCE,
+    RNG_AI_RANDOM_SWITCHIN_POST_KO,
+    RNG_AI_RANDOM_SWITCHIN_MID_BATTLE,
+    RNG_AI_RANDOM_VALID_SWITCHIN_POST_KO,
+    RNG_AI_RANDOM_VALID_SWITCHIN_MID_BATTLE,
+    RNG_HEALER,
+    RNG_DEXNAV_ENCOUNTER_LEVEL,
+    RNG_POKERUS_PARTY_MEMBER,
+    RNG_POKERUS_INFECTION,
+    RNG_POKERUS_STRAIN_DISTRIBUTION,
+    RNG_POKERUS_SPREAD,
+    RNG_POKERUS_SPREAD_SIDE,
+    RNG_AI_ASSUME_STATUS_SLEEP,
+    RNG_AI_ASSUME_STATUS_NONVOLATILE,
+    RNG_AI_ASSUME_STATUS_HIGH_ODDS,
+    RNG_AI_ASSUME_STATUS_MEDIUM_ODDS,
+    RNG_AI_ASSUME_STATUS_LOW_ODDS,
+    RNG_AI_ASSUME_ALL_STATUS,
+    RNG_AI_REFRESH_TRICK_ROOM_ON_LAST_TURN,
+    RNG_AI_APPLY_TAILWIND_ON_LAST_TURN_OF_TRICK_ROOM,
+    RNG_AI_REVERSE_BATTLER_LOGIC_ORDER,
+    RNG_WRAP,
+    RNG_BALLTHROW_CRITICAL,
+    RNG_BALLTHROW_SHAKE,
+    RNG_PROTECT_FAIL,
+    RNG_PRESENT,
+    RNG_MAGNITUDE,
+    RNG_FISHING_BITE,
+    RNG_FISHING_GEN3_STICKY,
+    RNG_WILD_MON_TARGET,
+    RNG_AI_FAKE_OUT_SAVE_ALLY,
+    RNG_AI_DMG_ROLL_RANDOM,
+    RNG_RANDOM_BERRY,
+    RNG_DAYCARE_MAKE_EGG,
+    RNG_DAYCARE_PICK_NATURE_PARENT,
+    RNG_DAYCARE_NATURE_INHERITANCE,
+    RNG_DAYCARE_INHERITED_STATS,
+    RNG_DAYCARE_PICK_IVS_PARENT,
+    RNG_DAYCARE_PICK_BALL_PARENT,
+    RNG_DAYCARE_ABILITY_INHERITANCE,
+    RNG_DEXNAV_RANDOM_EGG_MOVE,
+    RNG_RANDOM_BALL,
 };
 
 #define RandomWeighted(tag, ...) \
     ({ \
-        const u8 weights[] = { __VA_ARGS__ }; \
+        const u16 weights[] = { __VA_ARGS__ }; \
         u32 sum, i; \
         for (i = 0, sum = 0; i < ARRAY_COUNT(weights); i++) \
             sum += weights[i]; \
@@ -217,18 +273,23 @@ enum RandomTag
 
 #define RandomPercentage(tag, t) \
     ({ \
+        s32 p = (t); \
         u32 r; \
-        if (t <= 0) \
+        if_comptime (p == 50) \
+        { \
+            r = RandomUniform(tag, FALSE, TRUE); \
+        } \
+        else if (p <= 0) \
         { \
             r = FALSE; \
         } \
-        else if (t >= 100) \
+        else if (p >= 100) \
         { \
             r = TRUE; \
         } \
         else \
         { \
-          const u8 weights[] = { 100 - t, t }; \
+          const u16 weights[] = { 100 - p, p }; \
           r = RandomWeightedArray(tag, 100, ARRAY_COUNT(weights), weights); \
         } \
         r; \
@@ -241,14 +302,27 @@ enum RandomTag
 
 u32 RandomUniform(enum RandomTag, u32 lo, u32 hi);
 u32 RandomUniformExcept(enum RandomTag, u32 lo, u32 hi, bool32 (*reject)(u32));
-u32 RandomWeightedArray(enum RandomTag, u32 sum, u32 n, const u8 *weights);
+u32 RandomWeightedArray(enum RandomTag, u32 sum, u32 n, const u16 *weights);
 const void *RandomElementArray(enum RandomTag, const void *array, size_t size, size_t count);
 
 u32 RandomUniformDefault(enum RandomTag, u32 lo, u32 hi);
 u32 RandomUniformExceptDefault(enum RandomTag, u32 lo, u32 hi, bool32 (*reject)(u32));
-u32 RandomWeightedArrayDefault(enum RandomTag, u32 sum, u32 n, const u8 *weights);
+u32 RandomWeightedArrayDefault(enum RandomTag, u32 sum, u32 n, const u16 *weights);
 const void *RandomElementArrayDefault(enum RandomTag, const void *array, size_t size, size_t count);
 
 u8 RandomWeightedIndex(u8 *weights, u8 length);
+
+u32 RandomBitIndex(enum RandomTag tag, u32 bits);
+
+#if TESTING
+u32 RandomUniformTrials(enum RandomTag tag, u32 lo, u32 hi, bool32 (*reject)(u32), void *caller);
+u32 RandomUniformDefaultValue(enum RandomTag tag, u32 lo, u32 hi, bool32 (*reject)(u32), void *caller);
+u32 RandomWeightedArrayTrials(enum RandomTag tag, u32 sum, u32 n, const u16 *weights, void *caller);
+u32 RandomWeightedArrayDefaultValue(enum RandomTag tag, u32 n, const u16 *weights, void *caller);
+const void *RandomElementArrayTrials(enum RandomTag tag, const void *array, size_t size, size_t count, void *caller);
+const void *RandomElementArrayDefaultValue(enum RandomTag tag, const void *array, size_t size, size_t count, void *caller);
+#endif
+
+u32 Crc32B (const u8 *data, u32 size);
 
 #endif // GUARD_RANDOM_H

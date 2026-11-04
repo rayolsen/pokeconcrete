@@ -4,14 +4,16 @@
 ASSUMPTIONS
 {
     ASSUME(MoveHasAdditionalEffect(MOVE_BUG_BITE, MOVE_EFFECT_BUG_BITE));
-    ASSUME(gMovesInfo[MOVE_BUG_BITE].pp == 20);
+    ASSUME(GetMovePP(MOVE_BUG_BITE) == 20);
 }
 
 // Pretty much copy/paste of the Berry Fling Test.
 SINGLE_BATTLE_TEST("Bug Bite eats the target's berry and immediately gains its effect")
 {
-    u16 item = ITEM_NONE;
-    u32 status1 = STATUS1_NONE, effect = HOLD_EFFECT_NONE, statId = 0;
+    enum Item item = ITEM_NONE;
+    u32 status1 = STATUS1_NONE;
+    enum HoldEffect effect = HOLD_EFFECT_NONE;
+    enum Stat statId = STAT_HP;
 
     PARAMETRIZE { item = ITEM_NONE; }
     PARAMETRIZE { item = ITEM_ORAN_BERRY; effect = HOLD_EFFECT_RESTORE_HP; }
@@ -36,67 +38,55 @@ SINGLE_BATTLE_TEST("Bug Bite eats the target's berry and immediately gains its e
         PLAYER(SPECIES_WOBBUFFET) { HP(399); MaxHP(400); Status1(status1); Moves(MOVE_SLEEP_TALK, MOVE_BUG_BITE); }
         OPPONENT(SPECIES_WOBBUFFET) { Item(item); }
     } WHEN {
-        // Chesto Berry can only be applied if the pokemon is asleep and uses Sleep Talk.
+        // Chesto Berry can only be applied if the Pokémon is asleep and uses Sleep Talk.
         if (item == ITEM_CHESTO_BERRY) {
             TURN { MOVE(player, MOVE_SLEEP_TALK); }
         } else {
-            TURN { MOVE(player, MOVE_BUG_BITE); }
+            TURN { MOVE(player, MOVE_BUG_BITE, WITH_RNG(RNG_PARALYSIS, FALSE)); }
         }
 
     } SCENE {
-        if (item == ITEM_CHESTO_BERRY) {
+        if (item == ITEM_CHESTO_BERRY)
+        {
             MESSAGE("Wobbuffet used Sleep Talk!");
         }
         MESSAGE("Wobbuffet used Bug Bite!");
         ANIMATION(ANIM_TYPE_MOVE, MOVE_BUG_BITE, player);
         HP_BAR(opponent);
-        if (effect == HOLD_EFFECT_RESTORE_HP || effect == HOLD_EFFECT_ENIGMA_BERRY) {
-            if (item == ITEM_ORAN_BERRY) {
-                MESSAGE("Wobbuffet's Oran Berry restored health!");
-            } else if (item == ITEM_SITRUS_BERRY) {
-                MESSAGE("Wobbuffet's Sitrus Berry restored health!");
-            } else {
-                MESSAGE("Wobbuffet's Enigma Berry restored health!");
-            }
-            HP_BAR(player);
-        }
-        else if (effect == HOLD_EFFECT_RESTORE_PP) {
-            MESSAGE("Wobbuffet's Leppa Berry restored Bug Bite's PP!");
-        }
-        else if (status1 != STATUS1_NONE) {
+        if (status1 != STATUS1_NONE) {
             if (status1 == STATUS1_BURN) {
-                MESSAGE("Wobbuffet's Rawst Berry healed its burn!");
+                MESSAGE("Wobbuffet's Rawst Berry cured its burn!");
             } else if (status1 == STATUS1_SLEEP) {
-                MESSAGE("Wobbuffet's Chesto Berry woke it from its sleep!");
+                MESSAGE("Wobbuffet's Chesto Berry woke it up!");
             } else if (status1 == STATUS1_PARALYSIS) {
-                MESSAGE("Wobbuffet's Cheri Berry cured paralysis!");
+                MESSAGE("Wobbuffet's Cheri Berry cured its paralysis!");
             } else if (status1 == STATUS1_TOXIC_POISON || status1 == STATUS1_POISON) {
-                MESSAGE("Wobbuffet's Pecha Berry cured poison!");
+                MESSAGE("Wobbuffet's Pecha Berry cured its poison!");
             } else if (status1 == STATUS1_FROSTBITE) {
-                MESSAGE("Wobbuffet's Aspear Berry healed its frostbite!");
+                MESSAGE("Wobbuffet's Aspear Berry cured its frostbite!");
             }
             NOT STATUS_ICON(player, status1);
         }
         else if (statId != 0) {
             ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, player);
             if (statId == STAT_ATK) {
-                MESSAGE("Using Liechi Berry, the Attack of Wobbuffet rose!");
+                MESSAGE("The Liechi Berry boosted Wobbuffet's Attack!");
             } else if (statId == STAT_DEF) {
                 if (item == ITEM_GANLON_BERRY) {
-                    MESSAGE("Using Ganlon Berry, the Defense of Wobbuffet rose!");
+                    MESSAGE("The Ganlon Berry boosted Wobbuffet's Defense!");
                 } else {
-                    MESSAGE("Using Kee Berry, the Defense of Wobbuffet rose!");
+                    MESSAGE("The Kee Berry boosted Wobbuffet's Defense!");
                 }
             } else if (statId == STAT_SPDEF) {
                 if (item == ITEM_APICOT_BERRY) {
-                    MESSAGE("Using Apicot Berry, the Sp. Def of Wobbuffet rose!");
+                    MESSAGE("The Apicot Berry boosted Wobbuffet's Sp. Def!");
                 } else {
-                    MESSAGE("Using Maranga Berry, the Sp. Def of Wobbuffet rose!");
+                    MESSAGE("The Maranga Berry boosted Wobbuffet's Sp. Def!");
                 }
             } else if (statId == STAT_SPEED) {
-                MESSAGE("Using Salac Berry, the Speed of Wobbuffet rose!");
+                MESSAGE("The Salac Berry boosted Wobbuffet's Speed!");
             } else if (statId == STAT_SPATK) {
-                MESSAGE("Using Petaya Berry, the Sp. Atk of Wobbuffet rose!");
+                MESSAGE("The Petaya Berry boosted Wobbuffet's Sp. Atk!");
             }
         }
     } THEN {
@@ -120,17 +110,31 @@ SINGLE_BATTLE_TEST("Tanga Berry activates before Bug Bite")
         ASSUME(gItemsInfo[ITEM_TANGA_BERRY].holdEffect == HOLD_EFFECT_RESIST_BERRY);
         ASSUME(gItemsInfo[ITEM_TANGA_BERRY].holdEffectParam == TYPE_BUG);
         PLAYER(SPECIES_WOBBUFFET);
-        OPPONENT(SPECIES_WOBBUFFET) {Item(ITEM_TANGA_BERRY); }
+        OPPONENT(SPECIES_WOBBUFFET) { Item(ITEM_TANGA_BERRY); }
     } WHEN {
         TURN { MOVE(player, MOVE_BUG_BITE); }
     } SCENE {
         MESSAGE("Wobbuffet used Bug Bite!");
-        ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_HELD_ITEM_EFFECT, opponent);
-        MESSAGE("Foe Wobbuffet ate its Tanga Berry!");
+        ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_HELD_ITEM_BERRY, opponent);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_BUG_BITE, player);
         HP_BAR(opponent);
-        MESSAGE("Tanga Berry weakened the damage to Foe Wobbuffet!");
+        MESSAGE("The opposing Wobbuffet's Tanga Berry lessened the damage it took!");
     } THEN {
         EXPECT_EQ(player->item, ITEM_NONE);
+    }
+}
+
+SINGLE_BATTLE_TEST("Bug Bite ignores Unnerve")
+{
+    GIVEN {
+        PLAYER(SPECIES_WOBBUFFET) { HP(1); }
+        OPPONENT(SPECIES_TYRANITAR) { Ability(ABILITY_UNNERVE); Item(ITEM_ORAN_BERRY); }
+    } WHEN {
+        TURN { MOVE(player, MOVE_BUG_BITE); }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_BUG_BITE, player);
+        HP_BAR(player);
+    } THEN {
+        EXPECT_EQ(opponent->item, ITEM_NONE);
     }
 }

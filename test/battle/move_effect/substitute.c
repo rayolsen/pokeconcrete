@@ -3,7 +3,7 @@
 
 ASSUMPTIONS
 {
-    ASSUME(gMovesInfo[MOVE_SUBSTITUTE].effect == EFFECT_SUBSTITUTE);
+    ASSUME(GetMoveEffect(MOVE_SUBSTITUTE) == EFFECT_SUBSTITUTE);
 }
 
 SINGLE_BATTLE_TEST("Substitute creates a Substitute at the cost of 1/4 users maximum HP")
@@ -18,10 +18,10 @@ SINGLE_BATTLE_TEST("Substitute creates a Substitute at the cost of 1/4 users max
     } WHEN {
         TURN { MOVE(player, MOVE_SUBSTITUTE); }
     } SCENE {
-        maxHP = GetMonData(&gPlayerParty[0], MON_DATA_HP);
+        maxHP = GetMonData(&gParties[B_TRAINER_PLAYER][0], MON_DATA_HP);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SUBSTITUTE, player);
         HP_BAR(player, captureDamage: &costHP);
-        MESSAGE("Wobbuffet made a SUBSTITUTE!");
+        MESSAGE("Wobbuffet put in a substitute!");
     }THEN {
         EXPECT_EQ(maxHP / 4, costHP);
     }
@@ -36,7 +36,7 @@ SINGLE_BATTLE_TEST("Substitute fails if the user doesn't have enough HP")
     } WHEN {
         TURN { MOVE(player, MOVE_SUBSTITUTE); }
     } SCENE {
-        MESSAGE("It was too weak to make a SUBSTITUTE!");
+        MESSAGE("But it does not have enough HP left to make a substitute!");
     }
 }
 
@@ -51,7 +51,6 @@ SINGLE_BATTLE_TEST("Substitute's HP cost can trigger a berry")
         TURN { MOVE(player, MOVE_SUBSTITUTE); }
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SUBSTITUTE, player);
-        MESSAGE("Wobbuffet's Sitrus Berry restored health!");
     }
 }
 
@@ -64,9 +63,32 @@ SINGLE_BATTLE_TEST("Substitute's HP cost doesn't trigger effects that trigger on
         TURN { MOVE(player, MOVE_SUBSTITUTE); }
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SUBSTITUTE, player);
-        MESSAGE("Wobbuffet made a SUBSTITUTE!");
+        MESSAGE("Wobbuffet put in a substitute!");
         NOT MESSAGE("Wobbuffet's Air Balloon popped!");
     }
 }
 
-TO_DO_BATTLE_TEST("Baton Pass passes Substitutes");
+SINGLE_BATTLE_TEST("Baton Pass passes Substitutes")
+{
+    GIVEN {
+        ASSUME(GetMoveEffect(MOVE_BATON_PASS) == EFFECT_BATON_PASS);
+        PLAYER(SPECIES_WOBBUFFET) { MaxHP(400); HP(400); }
+        PLAYER(SPECIES_WYNAUT) { MaxHP(200); HP(200); Defense(999); }
+        OPPONENT(SPECIES_WOBBUFFET) { Attack(1); }
+    } WHEN {
+        TURN { MOVE(player, MOVE_SUBSTITUTE); }
+        TURN { MOVE(player, MOVE_BATON_PASS); SEND_OUT(player, 1); }
+        TURN { MOVE(opponent, MOVE_SCRATCH); }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_SUBSTITUTE, player);
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_BATON_PASS, player);
+        SEND_IN_MESSAGE("Wynaut");
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_SCRATCH, opponent);
+        SUB_HIT(player);
+    } THEN {
+        EXPECT_EQ(player->species, SPECIES_WYNAUT);
+        EXPECT_EQ(player->hp, player->maxHP);
+        EXPECT(player->volatiles.substitute);
+        EXPECT_EQ((u32)player->volatiles.substituteHP, 99);
+    }
+}

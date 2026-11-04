@@ -3,23 +3,23 @@
 
 ASSUMPTIONS
 {
-    ASSUME(gMovesInfo[MOVE_FLY].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_FLY].argument)) == STATUS3_ON_AIR);
-    ASSUME(gMovesInfo[MOVE_DIG].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_DIG].argument)) == STATUS3_UNDERGROUND);
-    ASSUME(gMovesInfo[MOVE_BOUNCE].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_BOUNCE].argument)) == STATUS3_ON_AIR);
-    ASSUME(gMovesInfo[MOVE_DIVE].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_DIVE].argument)) == STATUS3_UNDERWATER);
-    ASSUME(gMovesInfo[MOVE_PHANTOM_FORCE].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_PHANTOM_FORCE].argument)) == STATUS3_PHANTOM_FORCE);
-    ASSUME(gMovesInfo[MOVE_SHADOW_FORCE].effect == EFFECT_SEMI_INVULNERABLE);
-    ASSUME(UNCOMPRESS_BITS(HIHALF(gMovesInfo[MOVE_SHADOW_FORCE].argument)) == STATUS3_PHANTOM_FORCE);
+    ASSUME(GetMoveEffect(MOVE_FLY) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_FLY) == STATE_ON_AIR);
+    ASSUME(GetMoveEffect(MOVE_DIG) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_DIG) == STATE_UNDERGROUND);
+    ASSUME(GetMoveEffect(MOVE_BOUNCE) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_BOUNCE) == STATE_ON_AIR);
+    ASSUME(GetMoveEffect(MOVE_DIVE) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_DIVE) == STATE_UNDERWATER);
+    ASSUME(GetMoveEffect(MOVE_PHANTOM_FORCE) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_PHANTOM_FORCE) == STATE_PHANTOM_FORCE);
+    ASSUME(GetMoveEffect(MOVE_SHADOW_FORCE) == EFFECT_SEMI_INVULNERABLE);
+    ASSUME(GetTwoTurnMoveSemiInvulnerability(MOVE_SHADOW_FORCE) == STATE_PHANTOM_FORCE);
 }
 
 SINGLE_BATTLE_TEST("Semi-invulnerable moves make the user semi-invulnerable turn 1, then strike turn 2")
 {
-    u16 move;
+    enum Move move;
 
     PARAMETRIZE { move = MOVE_FLY; }
     PARAMETRIZE { move = MOVE_DIG; }
@@ -64,6 +64,8 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves make the user semi-invulnerable turn
                     NOT MESSAGE("Wobbuffet vanished instantly!");
                     MESSAGE("Wobbuffet used Shadow Force!");
                     break;
+                default:
+                    break;
             }
         } else {
             ANIMATION(ANIM_TYPE_MOVE, move, player);
@@ -88,14 +90,16 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves make the user semi-invulnerable turn
                 case MOVE_SHADOW_FORCE:
                     MESSAGE("Wobbuffet vanished instantly!");
                     break;
+                default:
+                    break;
             }
         }
         else
             ANIMATION(ANIM_TYPE_MOVE, move, player);
 
         // Aerial Ace cannot miss unless the target is semi-invulnerable
-        MESSAGE("Foe Wobbuffet used Aerial Ace!");
-        MESSAGE("Foe Wobbuffet's attack missed!");
+        MESSAGE("The opposing Wobbuffet used Aerial Ace!");
+        MESSAGE("Wobbuffet avoided the attack!");
         // Attack turn
         switch (move)
         {
@@ -117,6 +121,8 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves make the user semi-invulnerable turn
             case MOVE_SHADOW_FORCE:
                 MESSAGE("Wobbuffet used Shadow Force!");
                 break;
+            default:
+                break;
         }
         ANIMATION(ANIM_TYPE_MOVE, move, player);
         HP_BAR(opponent);
@@ -125,7 +131,7 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves make the user semi-invulnerable turn
 
 SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb")
 {
-    u16 move;
+    enum Move move;
 
     PARAMETRIZE { move = MOVE_FLY; }
     PARAMETRIZE { move = MOVE_DIG; }
@@ -135,6 +141,7 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb
     PARAMETRIZE { move = MOVE_SHADOW_FORCE; }
 
     GIVEN {
+        ASSUME(GetItemHoldEffect(ITEM_POWER_HERB) == HOLD_EFFECT_POWER_HERB);
         PLAYER(SPECIES_WOBBUFFET) { Item(ITEM_POWER_HERB); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
@@ -169,6 +176,8 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb
                     NOT MESSAGE("Wobbuffet vanished instantly!");
                     MESSAGE("Wobbuffet used Shadow Force!");
                     break;
+                default:
+                    break;
             }
         } else {
             ANIMATION(ANIM_TYPE_MOVE, move, player);
@@ -192,6 +201,8 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb
                 case MOVE_PHANTOM_FORCE:
                 case MOVE_SHADOW_FORCE:
                     MESSAGE("Wobbuffet vanished instantly!");
+                    break;
+                default:
                     break;
             }
         }
@@ -220,6 +231,8 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb
                 case MOVE_SHADOW_FORCE:
                     MESSAGE("Wobbuffet used Shadow Force!");
                     break;
+                default:
+                    break;
             }
         }
         ANIMATION(ANIM_TYPE_MOVE, move, player);
@@ -227,10 +240,30 @@ SINGLE_BATTLE_TEST("Semi-invulnerable moves don't need to charge with Power Herb
     }
 }
 
+SINGLE_BATTLE_TEST("Power Herb semi-invulnerable moves do not keep the user untargetable that turn")
+{
+    GIVEN {
+        ASSUME(GetItemHoldEffect(ITEM_POWER_HERB) == HOLD_EFFECT_POWER_HERB);
+        PLAYER(SPECIES_BASCULEGION) { Item(ITEM_POWER_HERB); Speed(20); }
+        OPPONENT(SPECIES_WOBBUFFET) { Speed(10); }
+    } WHEN {
+        TURN { MOVE(player, MOVE_PHANTOM_FORCE); MOVE(opponent, MOVE_WATER_GUN); }
+    } SCENE {
+        NOT MESSAGE("Basculegion vanished instantly!");
+        MESSAGE("Basculegion used Phantom Force!");
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_PHANTOM_FORCE, player);
+        MESSAGE("Basculegion became fully charged due to its Power Herb!");
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_PHANTOM_FORCE, player);
+        HP_BAR(opponent);
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_GUN, opponent);
+        HP_BAR(player);
+    }
+}
+
 // No way to apply this test with Shadow Force/Phantom Force
 SINGLE_BATTLE_TEST("Semi-invulnerable moves apply a status that won't block certain moves")
 {
-    u16 move, opMove;
+    enum Move move, opMove;
 
     PARAMETRIZE { move = MOVE_FLY; opMove = MOVE_SKY_UPPERCUT; }
     PARAMETRIZE { move = MOVE_DIG; opMove = MOVE_EARTHQUAKE; }

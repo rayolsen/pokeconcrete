@@ -4,7 +4,7 @@
 SINGLE_BATTLE_TEST("Water Absorb heals 25% when hit by water type moves")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_BUBBLE].type == TYPE_WATER);
+        ASSUME(GetMoveType(MOVE_BUBBLE) == TYPE_WATER);
         PLAYER(SPECIES_POLIWAG) { Ability(ABILITY_WATER_ABSORB); HP(1); MaxHP(100); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
@@ -12,28 +12,28 @@ SINGLE_BATTLE_TEST("Water Absorb heals 25% when hit by water type moves")
     } SCENE {
         ABILITY_POPUP(player, ABILITY_WATER_ABSORB);
         HP_BAR(player, damage: -25);
-        MESSAGE("Poliwag restored HP using its Water Absorb!");
+        MESSAGE("Poliwag had its HP restored.");
     }
 }
 
 SINGLE_BATTLE_TEST("Water Absorb does not activate if protected")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_BUBBLE].type == TYPE_WATER);
+        ASSUME(GetMoveType(MOVE_BUBBLE) == TYPE_WATER);
         PLAYER(SPECIES_POLIWAG) { Ability(ABILITY_WATER_ABSORB); HP(1); MaxHP(100); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
         TURN { MOVE(player, MOVE_PROTECT); MOVE(opponent, MOVE_BUBBLE); }
     } SCENE {
-        NONE_OF { ABILITY_POPUP(player, ABILITY_WATER_ABSORB); HP_BAR(player); MESSAGE("Poliwag restored HP using its Water Absorb!"); }
+        NONE_OF { ABILITY_POPUP(player, ABILITY_WATER_ABSORB); HP_BAR(player); MESSAGE("Poliwag had its HP restored."); }
     }
 }
 
 SINGLE_BATTLE_TEST("Water Absorb activates on status moves")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_SOAK].type == TYPE_WATER);
-        ASSUME(gMovesInfo[MOVE_SOAK].category == DAMAGE_CATEGORY_STATUS);
+        ASSUME(GetMoveType(MOVE_SOAK) == TYPE_WATER);
+        ASSUME(GetMoveCategory(MOVE_SOAK) == DAMAGE_CATEGORY_STATUS);
         PLAYER(SPECIES_POLIWAG) { Ability(ABILITY_WATER_ABSORB); HP(1); MaxHP(100); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
@@ -41,15 +41,15 @@ SINGLE_BATTLE_TEST("Water Absorb activates on status moves")
     } SCENE {
         ABILITY_POPUP(player, ABILITY_WATER_ABSORB);
         HP_BAR(player, damage: -25);
-        MESSAGE("Poliwag restored HP using its Water Absorb!");
+        MESSAGE("Poliwag had its HP restored.");
     }
 }
 
 SINGLE_BATTLE_TEST("Water Absorb is only triggered once on multi strike moves")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_WATER_SHURIKEN].type == TYPE_WATER);
-        ASSUME(gMovesInfo[MOVE_WATER_SHURIKEN].effect == EFFECT_MULTI_HIT);
+        ASSUME(GetMoveType(MOVE_WATER_SHURIKEN) == TYPE_WATER);
+        ASSUME(IsMultiHitMove(MOVE_WATER_SHURIKEN));
         PLAYER(SPECIES_POLIWAG) { Ability(ABILITY_WATER_ABSORB); HP(1); MaxHP(100); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
@@ -57,17 +57,17 @@ SINGLE_BATTLE_TEST("Water Absorb is only triggered once on multi strike moves")
     } SCENE {
         ABILITY_POPUP(player, ABILITY_WATER_ABSORB);
         HP_BAR(player, damage: -25);
-        MESSAGE("Poliwag restored HP using its Water Absorb!");
+        MESSAGE("Poliwag had its HP restored.");
     }
 }
 
 SINGLE_BATTLE_TEST("Water Absorb prevents Absorb Bulb and Luminous Moss from activating")
 {
-    u32 item;
+    enum Item item;
     PARAMETRIZE { item = ITEM_ABSORB_BULB; }
     PARAMETRIZE { item = ITEM_LUMINOUS_MOSS; }
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_BUBBLE].type == TYPE_WATER);
+        ASSUME(GetMoveType(MOVE_BUBBLE) == TYPE_WATER);
         PLAYER(SPECIES_POLIWAG) { Ability(ABILITY_WATER_ABSORB); HP(1); MaxHP(100); Item(item); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
@@ -75,7 +75,7 @@ SINGLE_BATTLE_TEST("Water Absorb prevents Absorb Bulb and Luminous Moss from act
     } SCENE {
         ABILITY_POPUP(player, ABILITY_WATER_ABSORB);
         HP_BAR(player, damage: -25);
-        MESSAGE("Poliwag restored HP using its Water Absorb!");
+        MESSAGE("Poliwag had its HP restored.");
         NONE_OF {
             ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_HELD_ITEM_EFFECT, player);
             ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, player);

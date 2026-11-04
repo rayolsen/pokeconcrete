@@ -3,9 +3,9 @@
 
 ASSUMPTIONS
 {
-    ASSUME(gMovesInfo[MOVE_WATER_PLEDGE].effect == EFFECT_PLEDGE);
-    ASSUME(gMovesInfo[MOVE_FIRE_PLEDGE].effect == EFFECT_PLEDGE);
-    ASSUME(gMovesInfo[MOVE_GRASS_PLEDGE].effect == EFFECT_PLEDGE);
+    ASSUME(GetMoveEffect(MOVE_WATER_PLEDGE) == EFFECT_PLEDGE);
+    ASSUME(GetMoveEffect(MOVE_FIRE_PLEDGE) == EFFECT_PLEDGE);
+    ASSUME(GetMoveEffect(MOVE_GRASS_PLEDGE) == EFFECT_PLEDGE);
 }
 
 DOUBLE_BATTLE_TEST("Water and Fire Pledge create a rainbow on the user's side of the field for four turns")
@@ -26,10 +26,10 @@ DOUBLE_BATTLE_TEST("Water and Fire Pledge create a rainbow on the user's side of
         MESSAGE("Wobbuffet used Water Pledge!");
         MESSAGE("Wobbuffet is waiting for Wynaut's move…{PAUSE 16}");
         MESSAGE("Wynaut used Fire Pledge!");
-        MESSAGE("The two moves become one! It's a combined move!{PAUSE 16}");
+        MESSAGE("The two moves have become one! It's a combined move!{PAUSE 16}");
         ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerRight);
         HP_BAR(opponentRight);
-        MESSAGE("A rainbow appeared in the sky on your team's side!");
+        MESSAGE("A rainbow appeared in the sky on your side!");
         MESSAGE("The rainbow on your side disappeared!");
     }
 }
@@ -51,7 +51,7 @@ DOUBLE_BATTLE_TEST("Rainbow doubles the chance of secondary move effects")
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerRight);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_EMBER, playerLeft);
-        MESSAGE("Foe Wynaut was burned!");
+        MESSAGE("The opposing Wynaut was burned!");
     }
 }
 
@@ -72,7 +72,7 @@ DOUBLE_BATTLE_TEST("Rainbow flinch chance does not stack with Serene Grace")
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerRight);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_BITE, playerLeft);
-        MESSAGE("Foe Wynaut flinched!");
+        MESSAGE("The opposing Wynaut flinched and couldn't move!");
     }
 }
 
@@ -94,24 +94,24 @@ DOUBLE_BATTLE_TEST("Fire and Grass Pledge summons Sea Of Fire for four turns tha
         MESSAGE("Wobbuffet used Fire Pledge!");
         MESSAGE("Wobbuffet is waiting for Wynaut's move…{PAUSE 16}");
         MESSAGE("Wynaut used Grass Pledge!");
-        MESSAGE("The two moves become one! It's a combined move!{PAUSE 16}");
+        MESSAGE("The two moves have become one! It's a combined move!{PAUSE 16}");
         ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
         HP_BAR(opponentRight);
-        MESSAGE("A sea of fire enveloped the opposing team!");
+        MESSAGE("A sea of fire enveloped the opposing side!");
         ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_SEA_OF_FIRE, opponentRight);
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentLeft);
-        MESSAGE("The opposing Foe Wobbuffet was hurt by the sea of fire!");
+        MESSAGE("The opposing Wobbuffet was hurt by the sea of fire!");
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentRight);
-        MESSAGE("The opposing Foe Wynaut was hurt by the sea of fire!");
+        MESSAGE("The opposing Wynaut was hurt by the sea of fire!");
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentLeft);
-        MESSAGE("The opposing Foe Wobbuffet was hurt by the sea of fire!");
+        MESSAGE("The opposing Wobbuffet was hurt by the sea of fire!");
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentRight);
-        MESSAGE("The opposing Foe Wynaut was hurt by the sea of fire!");
+        MESSAGE("The opposing Wynaut was hurt by the sea of fire!");
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentLeft);
-        MESSAGE("The opposing Foe Wobbuffet was hurt by the sea of fire!");
+        MESSAGE("The opposing Wobbuffet was hurt by the sea of fire!");
         ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentRight);
-        MESSAGE("The opposing Foe Wynaut was hurt by the sea of fire!");
-        MESSAGE("The sea of fire around the opposing team disappeared!");
+        MESSAGE("The opposing Wynaut was hurt by the sea of fire!");
+        MESSAGE("The sea of fire around the opposing side disappeared!");
     }
 }
 
@@ -134,6 +134,37 @@ DOUBLE_BATTLE_TEST("Sea Of Fire deals 1/8th damage per turn")
     }
 }
 
+DOUBLE_BATTLE_TEST("Sea Of Fire does not damage Fire-types or Magic Guard Pokemon")
+{
+    enum Species species;
+    enum Ability ability;
+
+    PARAMETRIZE { species = SPECIES_VICTINI;  ability = ABILITY_VICTORY_STAR; }
+    PARAMETRIZE { species = SPECIES_CLEFABLE; ability = ABILITY_MAGIC_GUARD; }
+
+    GIVEN {
+        ASSUME(IsSpeciesOfType(SPECIES_VICTINI, TYPE_FIRE));
+        PLAYER(SPECIES_WOBBUFFET) { Speed(4); }
+        PLAYER(SPECIES_WOBBUFFET) { Speed(3); }
+        OPPONENT(species) { Speed(2); Ability(ability); }
+        OPPONENT(SPECIES_WOBBUFFET) { Speed(1); }
+    } WHEN {
+        TURN { MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight);
+               MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight);
+        }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
+        HP_BAR(opponentRight);
+        MESSAGE("A sea of fire enveloped the opposing side!");
+        NONE_OF {
+            ANIMATION(ANIM_TYPE_STATUS, B_ANIM_STATUS_BRN, opponentLeft);
+            HP_BAR(opponentLeft);
+        }
+    } THEN {
+        EXPECT_EQ(opponentLeft->hp, opponentLeft->maxHP);
+    }
+}
+
 DOUBLE_BATTLE_TEST("Grass and Water Pledge create a swamp on the user's side of the field for four turns")
 {
     GIVEN {
@@ -152,11 +183,11 @@ DOUBLE_BATTLE_TEST("Grass and Water Pledge create a swamp on the user's side of 
         MESSAGE("Wobbuffet used Grass Pledge!");
         MESSAGE("Wobbuffet is waiting for Wynaut's move…{PAUSE 16}");
         MESSAGE("Wynaut used Water Pledge!");
-        MESSAGE("The two moves become one! It's a combined move!{PAUSE 16}");
+        MESSAGE("The two moves have become one! It's a combined move!{PAUSE 16}");
         ANIMATION(ANIM_TYPE_MOVE, MOVE_GRASS_PLEDGE, playerRight);
         HP_BAR(opponentRight);
-        MESSAGE("A swamp enveloped the opposing team!");
-        MESSAGE("The swamp around the opposing team disappeared!");
+        MESSAGE("A swamp enveloped the opposing side!");
+        MESSAGE("The swamp around the opposing side disappeared!");
     }
 }
 
@@ -189,7 +220,7 @@ DOUBLE_BATTLE_TEST("The base power of a combined pledge move effect is 150")
     s16 combinedPledgeDamage;
 
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_HYPER_BEAM].power == 150);
+        ASSUME(GetMovePower(MOVE_HYPER_BEAM) == 150);
         PLAYER(SPECIES_WOBBUFFET) { Speed(4); }
         PLAYER(SPECIES_WYNAUT) { Speed(3); }
         OPPONENT(SPECIES_WOBBUFFET) { Speed(8); }
@@ -217,7 +248,7 @@ DOUBLE_BATTLE_TEST("Pledge moves can not be redirected by absorbing abilities")
         OPPONENT(SPECIES_LILEEP) { Ability(ABILITY_STORM_DRAIN); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
-        TURN { MOVE(playerLeft, MOVE_WATER_PLEDGE, target: opponentRight);}
+        TURN { MOVE(playerLeft, MOVE_WATER_PLEDGE, target: opponentRight); }
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerLeft);
         HP_BAR(opponentRight);
@@ -226,7 +257,7 @@ DOUBLE_BATTLE_TEST("Pledge moves can not be redirected by absorbing abilities")
 
 DOUBLE_BATTLE_TEST("Pledge status timer does not reset if combined move is used again")
 {
-    u16 pledgeMove1, pledgeMove2;
+    enum Move pledgeMove1, pledgeMove2;
 
     PARAMETRIZE { pledgeMove1 = MOVE_WATER_PLEDGE; pledgeMove2 = MOVE_FIRE_PLEDGE; }
     PARAMETRIZE { pledgeMove1 = MOVE_FIRE_PLEDGE; pledgeMove2 = MOVE_GRASS_PLEDGE; }
@@ -252,25 +283,25 @@ DOUBLE_BATTLE_TEST("Pledge status timer does not reset if combined move is used 
         ANIMATION(ANIM_TYPE_MOVE, pledgeMove1, playerRight);
         if (pledgeMove1 == MOVE_WATER_PLEDGE && pledgeMove2 == MOVE_FIRE_PLEDGE)
         {
-            NOT MESSAGE("A rainbow appeared in the sky on your team's side!");
+            NOT MESSAGE("A rainbow appeared in the sky on your side!");
             MESSAGE("The rainbow on your side disappeared!");
         }
         if (pledgeMove1 == MOVE_FIRE_PLEDGE && pledgeMove2 == MOVE_GRASS_PLEDGE)
         {
-            NOT MESSAGE("A sea of fire enveloped the opposing team!");
-            MESSAGE("The sea of fire around the opposing team disappeared!");
+            NOT MESSAGE("A sea of fire enveloped the opposing side!");
+            MESSAGE("The sea of fire around the opposing side disappeared!");
         }
         if (pledgeMove1 == MOVE_GRASS_PLEDGE && pledgeMove2 == MOVE_WATER_PLEDGE)
         {
-            NOT MESSAGE("A swamp enveloped the opposing team!");
-            MESSAGE("The swamp around the opposing team disappeared!");
+            NOT MESSAGE("A swamp enveloped the opposing side!");
+            MESSAGE("The swamp around the opposing side disappeared!");
         }
     }
 }
 
 DOUBLE_BATTLE_TEST("Pledge moves get same attack type bonus from partner", s16 damage)
 {
-    u32 species;
+    enum Species species;
 
     PARAMETRIZE { species = SPECIES_WOBBUFFET; }
     PARAMETRIZE { species = SPECIES_CHARMANDER; }
@@ -313,7 +344,7 @@ DOUBLE_BATTLE_TEST("Damage calculation: Combined pledge move")
     PARAMETRIZE { expectedDamage = 136; }
     PARAMETRIZE { expectedDamage = 135; }
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_GRASS_PLEDGE].category == DAMAGE_CATEGORY_SPECIAL);
+        ASSUME(GetMoveCategory(MOVE_GRASS_PLEDGE) == DAMAGE_CATEGORY_SPECIAL);
         PLAYER(SPECIES_WOBBUFFET) { Speed(4); }
         PLAYER(SPECIES_WOBBUFFET) { HP(521); SpDefense(152); Speed(3); }
         OPPONENT(SPECIES_CHARIZARD) { Speed(8); }
@@ -334,7 +365,8 @@ DOUBLE_BATTLE_TEST("Damage calculation: Combined pledge move")
 DOUBLE_BATTLE_TEST("Pledge move combo interactions with Powder are correct")
 {
     // Fire Pledge as the first move or Fire Pledge combo should fail
-    u32 moveLeft, moveRight, speedLeft, speedRight;
+    enum Move moveLeft, moveRight;
+    u32 speedLeft, speedRight;
     PARAMETRIZE { moveLeft = MOVE_FIRE_PLEDGE; moveRight = MOVE_WATER_PLEDGE; speedLeft = 4; speedRight = 3; } // FAIL 1
     PARAMETRIZE { moveLeft = MOVE_FIRE_PLEDGE; moveRight = MOVE_WATER_PLEDGE; speedLeft = 3; speedRight = 4; }
     PARAMETRIZE { moveLeft = MOVE_WATER_PLEDGE; moveRight = MOVE_FIRE_PLEDGE; speedLeft = 4; speedRight = 3; }
@@ -344,7 +376,7 @@ DOUBLE_BATTLE_TEST("Pledge move combo interactions with Powder are correct")
     PARAMETRIZE { moveLeft = MOVE_GRASS_PLEDGE; moveRight = MOVE_FIRE_PLEDGE; speedLeft = 4; speedRight = 3; }
     PARAMETRIZE { moveLeft = MOVE_GRASS_PLEDGE; moveRight = MOVE_FIRE_PLEDGE; speedLeft = 3; speedRight = 4; } // FAIL 2
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_FIRE_PLEDGE].type == TYPE_FIRE);
+        ASSUME(GetMoveType(MOVE_FIRE_PLEDGE) == TYPE_FIRE);
         PLAYER(SPECIES_WOBBUFFET) { Speed(speedLeft); }
         PLAYER(SPECIES_WYNAUT) { Speed(speedRight); }
         OPPONENT(SPECIES_WOBBUFFET) { Speed(8); }
@@ -471,11 +503,11 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Flinch Right"
         TURN { MOVE(opponentLeft, MOVE_FAKE_OUT, target: playerRight); MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight); MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight); }
     } SCENE {
         if (speedPLeft < speedPRight) {
-            MESSAGE("Wynaut flinched!");
+            MESSAGE("Wynaut flinched and couldn't move!");
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
         } else {
             NOT ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
-            MESSAGE("Wynaut flinched!");
+            MESSAGE("Wynaut flinched and couldn't move!");
         }
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
@@ -504,11 +536,11 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Flinch Left")
         TURN { MOVE(opponentLeft, MOVE_FAKE_OUT, target: playerLeft); MOVE(playerRight, MOVE_FIRE_PLEDGE, target: opponentRight); MOVE(playerLeft, MOVE_GRASS_PLEDGE, target: opponentRight); }
     } SCENE {
         if (speedPRight < speedPLeft) {
-            MESSAGE("Wobbuffet flinched!");
+            MESSAGE("Wobbuffet flinched and couldn't move!");
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
         } else {
             NOT ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
-            MESSAGE("Wobbuffet flinched!");
+            MESSAGE("Wobbuffet flinched and couldn't move!");
         }
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
@@ -728,10 +760,10 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Paralyzed Bot
         OPPONENT(SPECIES_WOBBUFFET) { Speed(80); }
         OPPONENT(SPECIES_WYNAUT) { Speed(2); }
     } WHEN {
-        TURN { MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, 0)); MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, 0)); }
+        TURN { MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight); MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, TRUE)); }
     } SCENE {
-        MESSAGE("Wobbuffet is paralyzed! It can't move!");
-        MESSAGE("Wynaut is paralyzed! It can't move!");
+        MESSAGE("Wobbuffet couldn't move because it's paralyzed!");
+        MESSAGE("Wynaut couldn't move because it's paralyzed!");
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
@@ -750,10 +782,10 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Paralyzed Bot
         OPPONENT(SPECIES_WOBBUFFET) { Speed(80); }
         OPPONENT(SPECIES_WYNAUT) { Speed(2); }
     } WHEN {
-        TURN { MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, 0)); MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, 0)); }
+        TURN { MOVE(playerLeft, MOVE_FIRE_PLEDGE, target: opponentRight); MOVE(playerRight, MOVE_GRASS_PLEDGE, target: opponentRight, WITH_RNG(RNG_PARALYSIS, TRUE)); }
     } SCENE {
-        MESSAGE("Wynaut is paralyzed! It can't move!");
-        MESSAGE("Wobbuffet is paralyzed! It can't move!");
+        MESSAGE("Wynaut couldn't move because it's paralyzed!");
+        MESSAGE("Wobbuffet couldn't move because it's paralyzed!");
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
@@ -777,8 +809,8 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Flinch Both L
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_FAKE_OUT, opponentLeft);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_FAKE_OUT, opponentRight);
-        MESSAGE("Wobbuffet flinched!");
-        MESSAGE("Wynaut flinched!");
+        MESSAGE("Wobbuffet flinched and couldn't move!");
+        MESSAGE("Wynaut flinched and couldn't move!");
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
@@ -802,8 +834,8 @@ DOUBLE_BATTLE_TEST("Pledge move combo fails if ally fails to act - Flinch Both R
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_FAKE_OUT, opponentLeft);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_FAKE_OUT, opponentRight);
-        MESSAGE("Wynaut flinched!");
-        MESSAGE("Wobbuffet flinched!");
+        MESSAGE("Wynaut flinched and couldn't move!");
+        MESSAGE("Wobbuffet flinched and couldn't move!");
         NONE_OF {
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerRight);
             ANIMATION(ANIM_TYPE_MOVE, MOVE_FIRE_PLEDGE, playerLeft);
@@ -823,7 +855,7 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
         OPPONENT(SPECIES_WYNAUT) { Speed(5); Status1(STATUS1_SLEEP_TURN(2)); }
     } WHEN {
         TURN { MOVE(opponentLeft, MOVE_FIRE_PLEDGE, target: playerLeft);
-               MOVE(opponentRight, MOVE_GRASS_PLEDGE, target: playerLeft); 
+               MOVE(opponentRight, MOVE_GRASS_PLEDGE, target: playerLeft);
                MOVE(playerLeft, MOVE_GRASS_PLEDGE, target: opponentRight); }
     } SCENE {
         NONE_OF {
@@ -885,8 +917,8 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
 DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move - Electrify")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_ELECTRIFY].effect == EFFECT_ELECTRIFY);
-        PLAYER(SPECIES_MAROWAK) { Ability(ABILITY_LIGHTNING_ROD); }
+        ASSUME(GetMoveEffect(MOVE_ELECTRIFY) == EFFECT_ELECTRIFY);
+        PLAYER(SPECIES_ELECTIVIRE) { Ability(ABILITY_MOTOR_DRIVE); }
         PLAYER(SPECIES_WOBBUFFET);
         OPPONENT(SPECIES_WOBBUFFET);
         OPPONENT(SPECIES_WYNAUT);
@@ -910,6 +942,7 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
 DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move - Storm Drain")
 {
     GIVEN {
+        WITH_CONFIG(B_REDIRECT_ABILITY_IMMUNITY, GEN_5);
         PLAYER(SPECIES_GASTRODON) { Ability(ABILITY_STORM_DRAIN); }
         PLAYER(SPECIES_WOBBUFFET);
         OPPONENT(SPECIES_WOBBUFFET);
@@ -1002,7 +1035,7 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
 DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move - Motor Drive")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_ELECTRIFY].effect == EFFECT_ELECTRIFY);
+        ASSUME(GetMoveEffect(MOVE_ELECTRIFY) == EFFECT_ELECTRIFY);
         PLAYER(SPECIES_ELECTIVIRE) { Ability(ABILITY_MOTOR_DRIVE); }
         PLAYER(SPECIES_WOBBUFFET);
         OPPONENT(SPECIES_WOBBUFFET);
@@ -1027,7 +1060,7 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
 DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move - Volt Absorb")
 {
     GIVEN {
-        ASSUME(gMovesInfo[MOVE_ELECTRIFY].effect == EFFECT_ELECTRIFY);
+        ASSUME(GetMoveEffect(MOVE_ELECTRIFY) == EFFECT_ELECTRIFY);
         PLAYER(SPECIES_JOLTEON) { Ability(ABILITY_VOLT_ABSORB); }
         PLAYER(SPECIES_WOBBUFFET);
         OPPONENT(SPECIES_WOBBUFFET);
@@ -1092,5 +1125,24 @@ DOUBLE_BATTLE_TEST("Pledge move combo doesn't trigger on opponent's Pledge move 
         }
         ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerLeft);
         HP_BAR(opponentRight);
+    }
+}
+
+DOUBLE_BATTLE_TEST("Pledge combo preserves turn order when the first user moves first")
+{
+    GIVEN {
+        PLAYER(SPECIES_WOBBUFFET) { Speed(4); }
+        PLAYER(SPECIES_WOBBUFFET) { Speed(1); }
+        OPPONENT(SPECIES_WOBBUFFET) { Speed(3); }
+        OPPONENT(SPECIES_WOBBUFFET) { Speed(2); }
+    } WHEN {
+        TURN {
+            MOVE(playerLeft, MOVE_WATER_PLEDGE, target: opponentLeft);
+            MOVE(playerRight, MOVE_FIRE_PLEDGE, target: opponentLeft);
+        }
+    } SCENE {
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_WATER_PLEDGE, playerRight);
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_CELEBRATE, opponentLeft);
+        ANIMATION(ANIM_TYPE_MOVE, MOVE_CELEBRATE, opponentRight);
     }
 }

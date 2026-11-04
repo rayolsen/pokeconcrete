@@ -7,11 +7,7 @@ void ClearDailyFlags(void);
 void DisableNationalPokedex(void);
 void EnableNationalPokedex(void);
 bool32 IsNationalPokedexEnabled(void);
-void DisableMysteryEvent(void);
-void EnableMysteryEvent(void);
 bool32 IsMysteryEventEnabled(void);
-void DisableMysteryGift(void);
-void EnableMysteryGift(void);
 bool32 IsMysteryGiftEnabled(void);
 void ClearMysteryGiftFlags(void);
 void ClearMysteryGiftVars(void);
@@ -47,5 +43,7 @@ extern u16 gSpecialVar_Facing;
 extern u16 gSpecialVar_MonBoxId;
 extern u16 gSpecialVar_MonBoxPos;
 extern u16 gSpecialVar_Unused_0x8014;
+
+extern const u16 gBadgeFlags[NUM_BADGES];
 
 #endif // GUARD_EVENT_DATA_H

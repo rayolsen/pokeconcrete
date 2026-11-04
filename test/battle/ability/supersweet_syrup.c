@@ -12,7 +12,7 @@ SINGLE_BATTLE_TEST("Supersweet Syrup lowers evasion once per battle by one stage
         TURN { SWITCH(opponent, 0); }
     } SCENE {
         ABILITY_POPUP(opponent, ABILITY_SUPERSWEET_SYRUP);
-        MESSAGE("A supersweet aroma is wafting from the syrup covering Foe Dipplin!");
+        MESSAGE("A supersweet aroma is wafting from the syrup covering the opposing Dipplin!");
         ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, player);
         MESSAGE("2 withdrew Dipplin!");
         MESSAGE("2 withdrew Wobbuffet!");
@@ -34,10 +34,10 @@ DOUBLE_BATTLE_TEST("Supersweet Syrup lowers evasion of both opposing mon's in ba
         OPPONENT(SPECIES_DIPPLIN) { Ability(ABILITY_SUPERSWEET_SYRUP); }
         OPPONENT(SPECIES_WOBBUFFET);
     } WHEN {
-        TURN { }
+        TURN {}
     } SCENE {
         ABILITY_POPUP(opponentLeft, ABILITY_SUPERSWEET_SYRUP);
-        MESSAGE("A supersweet aroma is wafting from the syrup covering Foe Dipplin!");
+        MESSAGE("A supersweet aroma is wafting from the syrup covering the opposing Dipplin!");
         ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, playerLeft);
         ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, playerRight);
     } THEN {
@@ -56,17 +56,27 @@ SINGLE_BATTLE_TEST("Supersweet Syrup can not further lower opponents evasion if 
         TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
         TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
         TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
+        if (B_UPDATED_MOVE_DATA < GEN_6) {
+            TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
+            TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
+            TURN { MOVE(opponent, MOVE_SWEET_SCENT); }
+        }
         TURN { SWITCH(opponent, 1); }
     } SCENE {
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
         ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
+        if (B_UPDATED_MOVE_DATA < GEN_6) {
+            ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
+            ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
+            ANIMATION(ANIM_TYPE_MOVE, MOVE_SWEET_SCENT, opponent);
+        }
         ABILITY_POPUP(opponent, ABILITY_SUPERSWEET_SYRUP);
         NONE_OF {
             ANIMATION(ANIM_TYPE_GENERAL, B_ANIM_STATS_CHANGE, player);
             MESSAGE("Oddish's evasiveness fell!");
         }
-        MESSAGE("Oddish's evasiveness won't go lower!");
+        MESSAGE("Oddish's evasiveness won't go any lower!");
     } THEN {
         EXPECT_EQ(player->statStages[STAT_EVASION], MIN_STAT_STAGE);
     }

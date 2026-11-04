@@ -14,10 +14,12 @@
 #include <string.h>
 #include <unistd.h>
 
-#define MAX_TRAINER_AI_FLAGS 32
+#define MAX_TRAINER_AI_FLAGS 64
 #define MAX_TRAINER_ITEMS 4
-#define PARTY_SIZE 6
+#define PARTY_SIZE 255
 #define MAX_MON_MOVES 4
+#define MAX_MON_TAGS 32
+#define STARTING_STATUS_COUNT 64
 
 struct String
 {
@@ -35,6 +37,18 @@ enum Gender
     GENDER_ANY,
     GENDER_MALE,
     GENDER_FEMALE,
+};
+
+enum BattleType
+{
+    BATTLE_TYPE_SINGLE,
+    BATTLE_TYPE_DOUBLE,
+};
+
+enum MultiParty
+{
+    MULTI_PARTY_FULL,
+    MULTI_PARTY_HALF,
 };
 
 // TODO: Support Hidden Power.
@@ -82,6 +96,10 @@ struct Pokemon
     struct String moves[MAX_MON_MOVES];
     int moves_n;
     int move1_line;
+
+    struct String tags[MAX_MON_TAGS];
+    int tags_n;
+    int tags_line;
 };
 
 struct Trainer
@@ -103,7 +121,7 @@ struct Trainer
     struct String encounter_music;
     int encounter_music_line;
 
-    enum Gender gender;
+    struct String gender;
     int gender_line;
 
     struct String pic;
@@ -112,8 +130,8 @@ struct Trainer
     struct String name;
     int name_line;
 
-    bool double_battle;
-    int double_battle_line;
+    enum BattleType battle_type;
+    int battle_type_line;
 
     struct Pokemon pokemon[PARTY_SIZE];
     int pokemon_n;
@@ -121,8 +139,33 @@ struct Trainer
     struct String mugshot;
     int mugshot_line;
 
-    struct String starting_status;
+    struct String starting_status[STARTING_STATUS_COUNT];
+    int starting_status_n;
     int starting_status_line;
+
+    struct String difficulty;
+    int difficulty_line;
+
+    int party_size;
+    int party_size_line;
+
+    struct String pool_rules;
+    int pool_rules_line;
+
+    struct String pool_pick_functions;
+    int pool_pick_functions_line;
+
+    struct String pool_prune;
+    int pool_prune_line;
+
+    struct String copy_pool;
+    int copy_pool_line;
+
+    struct String macro;
+    int macro_line;
+
+    enum MultiParty multi_team;
+    int multi_team_line;
 };
 
 static bool is_empty_string(struct String s)
@@ -143,7 +186,7 @@ static bool is_literal_string(struct String s1, const char *s2)
     }
 }
 
-static bool starts_with(struct String s, const char *prefix)
+static bool __attribute__((unused)) starts_with(struct String s, const char *prefix)
 {
     int n = strlen(prefix);
     return strncmp((const char *)s.string, prefix, n) == 0;
@@ -249,51 +292,6 @@ static bool set_parse_error(struct Parser *p, struct SourceLocation location, co
     p->error = error;
     p->error_location = location;
     return false;
-}
-
-static bool show_parse_error(struct Parser *p)
-{
-    // Print error message.
-    int n = fprintf(stderr, "%s:%d: ", p->source->path, p->error_location.line);
-    fprintf(stderr, "error: %s\n", p->error);
-
-    // Seek to the line.
-    int line, begin, end;
-    for (line = 1, begin = 0; begin < p->source->buffer_n; begin++)
-    {
-        if (p->error_location.line == line)
-            break;
-        if (p->source->buffer[begin] == '\n')
-            line++;
-    }
-    for (end = begin; end < p->source->buffer_n; end++)
-    {
-        if (p->source->buffer[end] == '\n')
-            break;
-    }
-
-    // Print the source line.
-    fprintf(stderr, "%s:%d: %.*s\n", p->source->path, p->error_location.line, end - begin, &p->source->buffer[begin]);
-
-    // Print caret pointing at the column.
-    fprintf(stderr, "%*s", n, "");
-    for (int column = 1; column < p->error_location.column && begin + column < end; column++)
-    {
-        unsigned char c = p->source->buffer[begin + column];
-        fputc(c == '\t' ? c : ' ', stderr);
-    }
-    fprintf(stderr, "^\n");
-
-    p->error = NULL;
-    p->fatal_error = true;
-
-    return false;
-}
-
-static bool set_show_parse_error(struct Parser *p, struct SourceLocation location, const char *error)
-{
-    set_parse_error(p, location, error);
-    return show_parse_error(p);
 }
 
 __attribute__((warn_unused_result))
@@ -484,7 +482,7 @@ static bool match_identifier(struct Parser *p, struct Token *t)
         if (!peek_char(&p_, &c))
             break;
 
-        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9') || c == '_')
+        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9') || c == '_'|| c == '\'')
             ;
         else
             break;
@@ -518,7 +516,7 @@ static bool match_human_identifier(struct Parser *p, struct Token *t)
         if (!peek_char(&p_, &c))
             break;
 
-        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c == '-' || c == ' ')
+        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || c == '_' || c == '-' || c == ' ' || c == '\'')
             ;
         else if (p_.offset > t->begin && ('0' <= c && c <= '9'))
             ;
@@ -598,7 +596,7 @@ static bool match_move_identifier(struct Parser *p, struct Token *t)
         if (!peek_char(&p_, &c))
             break;
 
-        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9') || c == '_' || c == '-' || c == ' ' || c == ',')
+        if (('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z') || ('0' <= c && c <= '9') || c == '_' || c == '-' || c == ' ' || c == ',' || c == '\'')
             ;
         else
             break;
@@ -616,6 +614,59 @@ static bool match_move_identifier(struct Parser *p, struct Token *t)
 
     *p = q;
     return true;
+}
+
+static bool show_parse_error(struct Parser *p)
+{
+    // Print error message.
+    int n = fprintf(stderr, "%s:%d: ", p->source->path, p->error_location.line);
+    fprintf(stderr, "error: %s\n", p->error);
+
+    struct Parser p_ = {
+        .source = p->source,
+        .location = { .line = 1, .column = 1 },
+        .offset = 0,
+    };
+
+    for (;;) {
+        if (p->error_location.line == p_.location.line)
+            break;
+        if (!match_empty_line(&p_))
+            skip_line(&p_);
+        if (match_eof(&p_))
+            assert(false);
+    }
+
+    int begin = p_.offset;
+    int end;
+    for (end = begin; end < p->source->buffer_n; end++)
+    {
+        if (p->source->buffer[end] == '\n')
+            break;
+    }
+
+    // Print the source line.
+    fprintf(stderr, "%s:%d: %.*s\n", p->source->path, p->error_location.line, end - begin, &p->source->buffer[begin]);
+
+    // Print caret pointing at the column.
+    fprintf(stderr, "%*s", n, "");
+    for (int column = 1; column < p->error_location.column && begin + column < end; column++)
+    {
+        unsigned char c = p->source->buffer[begin + column];
+        fputc(c == '\t' ? c : ' ', stderr);
+    }
+    fprintf(stderr, "^\n");
+
+    p->error = NULL;
+    p->fatal_error = true;
+
+    return false;
+}
+
+static bool set_show_parse_error(struct Parser *p, struct SourceLocation location, const char *error)
+{
+    set_parse_error(p, location, error);
+    return show_parse_error(p);
 }
 
 __attribute__((warn_unused_result))
@@ -813,12 +864,7 @@ static struct String token_string(const struct Token *t)
 
 static bool token_gender(struct Parser *p, const struct Token *t, enum Gender *g)
 {
-    if (is_empty_token(t))
-    {
-        *g = GENDER_ANY;
-        return true;
-    }
-    else if (is_literal_token(t, "M") || is_literal_token(t, "Male"))
+    if (is_literal_token(t, "M") || is_literal_token(t, "Male"))
     {
         *g = GENDER_MALE;
         return true;
@@ -831,6 +877,42 @@ static bool token_gender(struct Parser *p, const struct Token *t, enum Gender *g
     else
     {
         return set_parse_error(p, t->location, "invalid gender");
+    }
+}
+
+static bool token_battle_type(struct Parser *p, const struct Token *t, enum BattleType *g)
+{
+    if (is_literal_token(t, "Single") || is_literal_token(t, "Singles"))
+    {
+        *g = BATTLE_TYPE_SINGLE;
+        return true;
+    }
+    else if (is_literal_token(t, "Double") || is_literal_token(t, "Doubles"))
+    {
+        *g = BATTLE_TYPE_DOUBLE;
+        return true;
+    }
+    else
+    {
+        return set_parse_error(p, t->location, "invalid battle type");
+    }
+}
+
+static bool token_multi_team_type(struct Parser *p, const struct Token *t, enum MultiParty *g)
+{
+    if (is_literal_token(t, "Full"))
+    {
+        *g = MULTI_PARTY_FULL;
+        return true;
+    }
+    else if (is_literal_token(t, "Half"))
+    {
+        *g = MULTI_PARTY_HALF;
+        return true;
+    }
+    else
+    {
+        return set_parse_error(p, t->location, "invalid multi party type");
     }
 }
 
@@ -1148,8 +1230,7 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
             if (trainer->gender_line)
                 any_error = !set_show_parse_error(p, key.location, "duplicate 'Gender'");
             trainer->gender_line = value.location.line;
-            if (!token_gender(p, &value, &trainer->gender))
-                any_error = !show_parse_error(p);
+            trainer->gender = token_string(&value);
         }
         else if (is_literal_token(&key, "Pic"))
         {
@@ -1167,10 +1248,20 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
         }
         else if (is_literal_token(&key, "Double Battle"))
         {
-            if (trainer->double_battle_line)
-                any_error = !set_show_parse_error(p, key.location, "duplicate 'Double Battle'");
-            trainer->double_battle_line = value.location.line;
-            if (!token_bool(p, &value, &trainer->double_battle))
+            if (trainer->battle_type_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Double Battle' or 'Battle Type'");
+            trainer->battle_type_line = value.location.line;
+            bool is_double_battle;
+            if (!token_bool(p, &value, &is_double_battle))
+                any_error = !show_parse_error(p);
+            trainer->battle_type = is_double_battle ? BATTLE_TYPE_DOUBLE : BATTLE_TYPE_SINGLE;
+        }
+        else if (is_literal_token(&key, "Battle Type"))
+        {
+            if (trainer->battle_type_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Double Battle' or 'Battle Type'");
+            trainer->battle_type_line = value.location.line;
+            if (!token_battle_type(p, &value, &trainer->battle_type))
                 any_error = !show_parse_error(p);
         }
         else if (is_literal_token(&key, "Mugshot"))
@@ -1185,16 +1276,75 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
             if (trainer->starting_status_line)
                 any_error = !set_show_parse_error(p, key.location, "duplicate 'Starting Status'");
             trainer->starting_status_line = value.location.line;
-            trainer->starting_status = token_string(&value);
+            if (!token_human_identifiers(p, &value, trainer->starting_status, &trainer->starting_status_n, STARTING_STATUS_COUNT))
+                any_error = !show_parse_error(p);
+        }
+        else if (is_literal_token(&key, "Difficulty"))
+        {
+            if (trainer->difficulty_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Difficulty'");
+            trainer->difficulty_line = value.location.line;
+            trainer->difficulty = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Party Size"))
+        {
+            if (trainer->party_size_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Party Size'");
+            trainer->party_size_line = value.location.line;
+            if (!token_int(p, &value, &trainer->party_size))
+                any_error = !show_parse_error(p);
+        }
+        else if (is_literal_token(&key, "Pool Rules"))
+        {
+            if (trainer->pool_rules_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Pool Rules'");
+            trainer->pool_rules_line = value.location.line;
+            trainer->pool_rules = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Pool Pick Functions"))
+        {
+            if (trainer->pool_pick_functions_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Pool Pick Function'");
+            trainer->pool_pick_functions_line = value.location.line;
+            trainer->pool_pick_functions = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Pool Prune"))
+        {
+            if (trainer->pool_prune_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Pool Prune'");
+            trainer->pool_prune_line = value.location.line;
+            trainer->pool_prune = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Copy Pool"))
+        {
+            if (trainer->copy_pool_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Copy Pool'");
+            trainer->copy_pool_line = value.location.line;
+            trainer->copy_pool = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Macro"))
+        {
+            if (trainer->macro_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Macro'");
+            trainer->macro_line = value.location.line;
+            trainer->macro = token_string(&value);
+        }
+        else if (is_literal_token(&key, "Multi Party"))
+        {
+            if (trainer->multi_team_line)
+                any_error = !set_show_parse_error(p, key.location, "duplicate 'Multi Party'");
+            trainer->multi_team_line = value.location.line;
+            if (!token_multi_team_type(p, &value, &trainer->multi_team))
+                any_error = !show_parse_error(p);
         }
         else
         {
-            any_error = !set_show_parse_error(p, key.location, "expected one of 'Name', 'Class', 'Pic', 'Gender', 'Music', 'Items', 'Double Battle', or 'AI'");
+            any_error = !set_show_parse_error(p, key.location, "expected one of 'Name', 'Class', 'Pic', 'Back Pic', 'Gender', 'Music', 'Items', 'Battle Type', 'Difficulty', 'Party Size', 'Multi Party', 'Pool Rules', 'Pool Pick Functions', 'Pool Prune' or 'AI'");
         }
     }
-    if (!trainer->pic_line)
+    if (!trainer->pic_line && !trainer->macro_line)
         any_error = !set_show_parse_error(p, p->location, "expected 'Pic' before Pokemon");
-    if (!trainer->name_line)
+    if (!trainer->name_line && !trainer->macro_line)
         any_error = !set_show_parse_error(p, p->location, "expected 'Name' before Pokemon");
     if (!match_empty_line(p))
     {
@@ -1214,7 +1364,7 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
         while (match_empty_line(p)) {}
         if (!parse_pokemon_header(p, &nickname, &species, &gender, &item))
         {
-            if (i > 0 || ends_with(trainer->id, "_NONE"))
+            if (i > 0 || ends_with(trainer->id, "_NONE") || !is_empty_string(trainer->copy_pool))
                 break;
             if (!p->error)
                 set_parse_error(p, p->location, "expected nickname or species");
@@ -1228,9 +1378,17 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
         }
         trainer->pokemon_n++;
 
+        if (!is_empty_string(trainer->copy_pool))
+        {
+            set_show_parse_error(p, p->location, "trainer is set to copy mons from other trainer, but defines their own party");
+        }
+
+
         pokemon->nickname = token_string(&nickname);
         pokemon->species = token_string(&species);
-        if (!token_gender(p, &gender, &pokemon->gender))
+        if (is_empty_token(&gender))
+            pokemon->gender = GENDER_ANY;
+        else if (!token_gender(p, &gender, &pokemon->gender))
             any_error = !show_parse_error(p);
         pokemon->item = token_string(&item);
         pokemon->header_line = species.location.line;
@@ -1353,6 +1511,14 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
                 pokemon->tera_type_line = value.location.line;
                 pokemon->tera_type = token_string(&value);
             }
+            else if (is_literal_token(&key, "Tags"))
+            {
+                if (pokemon->tags_line)
+                    any_error = !set_show_parse_error(p, key.location, "duplicate 'Tags'");
+                pokemon->tags_line = value.location.line;
+                if (!token_human_identifiers(p, &value, pokemon->tags, &pokemon->tags_n, MAX_MON_TAGS))
+                    any_error = !show_parse_error(p);
+            }
             else
             {
                 any_error = !set_show_parse_error(p, key.location, "expected one of 'EVs', 'IVs', 'Ability', 'Level', 'Ball', 'Happiness', 'Nature', 'Shiny', 'Dynamax Level', 'Gigantamax', or 'Tera Type'");
@@ -1414,6 +1580,11 @@ static bool parse_trainer(struct Parser *p, const struct Parsed *parsed, struct 
             if (!parse_pokemon_header(&p_, &nickname, &species, &gender, &item))
                 return false;
         }
+    }
+
+    if (trainer->party_size_line && trainer->party_size > trainer->pokemon_n && is_empty_string(trainer->copy_pool))
+    {
+        set_show_parse_error(p, p->location, "partySize larger than supplied pool");
     }
 
     return !any_error;
@@ -1504,8 +1675,42 @@ static void fprint_constant(FILE *f, const char *prefix, struct String s)
                 fputc(c, f);
             else if ('a' <= c && c <= 'z')
                 fputc(c - 'a' + 'A', f);
+            else if (c == '\'')
+                ;
             else
                 fputc('_', f);
+        }
+    }
+    else
+    {
+        fprintf(f, "NONE");
+    }
+}
+
+static void fprint_symbol(FILE *f, struct String s)
+{
+    if (s.string_n > 0)
+    {
+        bool upper = false;
+        for (int i = 0; i < s.string_n; i++)
+        {
+            unsigned char c = s.string[i];
+            if ('A' <= c && c <= 'Z')
+            {
+                if (upper)
+                {
+                    fputc(c, f);
+                    upper = false;
+                    continue;
+                }
+                fputc(c + 'a' - 'A', f);
+            }
+            else if (('a' <= c && c <= 'z') || ('0' <= c && c <= '9'))
+                fputc(c, f);
+            else if (c == '\'')
+                ;
+            else
+                upper = true;
         }
     }
     else
@@ -1545,6 +1750,7 @@ static void fprint_species(FILE *f, const char *prefix, struct String s)
         static const unsigned char *male = (unsigned char *)u8"♂";
         static const unsigned char *female = (unsigned char *)u8"♀";
         static const unsigned char *e_diacritic = (unsigned char *)u8"é";
+        static const unsigned char *right_single_quotation_mark = (unsigned char *)u8"’";
         for (int i = 0; i < s.string_n; i++)
         {
             unsigned char c = s.string[i];
@@ -1562,7 +1768,7 @@ static void fprint_species(FILE *f, const char *prefix, struct String s)
                 underscore = false;
                 fputc(c - 'a' + 'A', f);
             }
-            else if (c == '\'' || c == '%')
+            else if (c == '\'' || c == '%' || is_utf8_character(s, &i, right_single_quotation_mark))
             {
                 // Do nothing.
             }
@@ -1596,9 +1802,7 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
     fprintf(f, "//\n");
     fprintf(f, "// DO NOT MODIFY THIS FILE! It is auto-generated from %s\n", parsed->source->path);
     fprintf(f, "//\n");
-    fprintf(f, "// If you want to modify this file set COMPETITIVE_PARTY_SYNTAX to FALSE\n");
-    fprintf(f, "// in include/config/general.h and remove this notice.\n");
-    fprintf(f, "// Use sed -i '/^#line/d' '%s' to remove #line markers.\n", output_path);
+    fprintf(f, "// If you want to modify this file see expansion PR #7154\n");
     fprintf(f, "//\n");
     fprintf(f, "\n");
 
@@ -1609,7 +1813,14 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
     {
         struct Trainer *trainer = &parsed->trainers[i];
         fprintf(f, "#line %d\n", trainer->id_line);
-        fprintf(f, "    [");
+        if (is_empty_string(trainer->difficulty))
+            trainer->difficulty = literal_string("Normal");
+        else
+            fprintf(f, "#line %d\n", trainer->difficulty_line);
+        fprint_constant(f, "    [DIFFICULTY",trainer->difficulty);
+        fprintf(f, "]");
+
+        fprintf(f, "[");
         fprint_string(f, trainer->id);
         fprintf(f, "] =\n");
         fprintf(f, "    {\n");
@@ -1634,30 +1845,25 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
         {
             fprintf(f, "#line %d\n", trainer->pic_line);
             fprintf(f, "        .trainerPic = ");
-            if (starts_with(trainer->id, "PARTNER_"))
-                fprint_constant(f, "TRAINER_BACK_PIC", trainer->pic);
-            else
-                fprint_constant(f, "TRAINER_PIC", trainer->pic);
+            fprint_constant(f, "TRAINER_PIC", trainer->pic);
             fprintf(f, ",\n");
         }
 
-        fprintf(f, "        .encounterMusic_gender = \n");
-        if (trainer->gender == GENDER_FEMALE)
+        if (!is_empty_string(trainer->gender))
         {
             fprintf(f, "#line %d\n", trainer->gender_line);
-            fprintf(f, "F_TRAINER_FEMALE | \n");
+            fprintf(f, "        .gender = ");
+            fprint_constant(f, "TRAINER_GENDER", trainer->gender);
+            fprintf(f, ",\n");
         }
+
         if (!is_empty_string(trainer->encounter_music))
         {
             fprintf(f, "#line %d\n", trainer->encounter_music_line);
-            fprintf(f, "            ");
+            fprintf(f, "        .encounterMusic = ");
             fprint_constant(f, "TRAINER_ENCOUNTER_MUSIC", trainer->encounter_music);
+            fprintf(f, ",\n");
         }
-        else
-        {
-            fprintf(f, "0");
-        }
-        fprintf(f, ",\n");
 
         if (trainer->items_n > 0)
         {
@@ -1672,12 +1878,14 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
             fprintf(f, " },\n");
         }
 
-        if (trainer->double_battle_line)
+        if (trainer->battle_type_line)
         {
-            fprintf(f, "#line %d\n", trainer->double_battle_line);
-            fprintf(f, "        .doubleBattle = ");
-            fprint_bool(f, trainer->double_battle);
-            fprintf(f, ",\n");
+            fprintf(f, "#line %d\n", trainer->battle_type_line);
+            fprintf(f, "        .battleType = ");
+            if (trainer->battle_type == BATTLE_TYPE_DOUBLE)
+                fprintf(f, "TRAINER_BATTLE_TYPE_DOUBLES,\n");
+            else
+                fprintf(f, "TRAINER_BATTLE_TYPE_SINGLES,\n");
         }
 
         if (trainer->ai_flags_n > 0)
@@ -1696,24 +1904,98 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
         if (!is_empty_string(trainer->mugshot))
         {
             fprintf(f, "#line %d\n", trainer->mugshot_line);
-            fprintf(f, "        .mugshotEnabled = TRUE,\n");
             fprintf(f, "        .mugshotColor = ");
             fprint_constant(f, "MUGSHOT_COLOR", trainer->mugshot);
             fprintf(f, ",\n");
         }
 
-        if (!is_empty_string(trainer->starting_status))
+        if (trainer->starting_status_n > 0)
         {
             fprintf(f, "#line %d\n", trainer->starting_status_line);
-            fprintf(f, "        .startingStatus = ");
-            fprint_constant(f, "STARTING_STATUS", trainer->starting_status);
+            fprintf(f, "        .startingStatus = { ");
+            for (int i = 0; i < trainer->starting_status_n; i++)
+            {
+                fprintf(f, ".");
+                fprint_symbol(f, trainer->starting_status[i]);
+                fprintf(f, " = TRUE, ");
+            }
+            fprintf(f, "},\n");
+        }
+
+        if (!is_empty_string(trainer->pool_rules))
+        {
+            fprintf(f, "#line %d\n", trainer->pool_rules_line);
+            fprintf(f, "        .poolRuleIndex = ");
+            fprint_constant(f, "POOL_RULESET", trainer->pool_rules);
             fprintf(f, ",\n");
         }
 
-        fprintf(f, "        .partySize = %d,\n", trainer->pokemon_n);
-        fprintf(f, "        .party = (const struct TrainerMon[])\n");
-        fprintf(f, "        {\n");
-        for (int j = 0; j < trainer->pokemon_n; j++)
+        if (!is_empty_string(trainer->pool_pick_functions))
+        {
+            fprintf(f, "#line %d\n", trainer->pool_pick_functions_line);
+            fprintf(f, "        .poolPickIndex = ");
+            fprint_constant(f, "POOL_PICK", trainer->pool_pick_functions);
+            fprintf(f, ",\n");
+        }
+
+        if (!is_empty_string(trainer->pool_prune))
+        {
+            fprintf(f, "#line %d\n", trainer->pool_prune_line);
+            fprintf(f, "        .poolPruneIndex = ");
+            fprint_constant(f, "POOL_PRUNE", trainer->pool_prune);
+            fprintf(f, ",\n");
+        }
+
+        if (!is_empty_string(trainer->copy_pool))
+        {
+            fprintf(f, "#line %d\n", trainer->copy_pool_line);
+            fprintf(f, "        .overrideTrainer = ");
+            fprint_string(f, trainer->copy_pool);
+            fprintf(f, ",\n");
+        }
+
+        if (trainer->multi_team_line)
+        {
+            fprintf(f, "#line %d\n", trainer->multi_team_line);
+            fprintf(f, "        .multiTeamSize = ");
+            if (trainer->multi_team == MULTI_PARTY_HALF)
+                fprintf(f, "MULTI_TEAM_SIZE_HALF,\n");
+            else
+                fprintf(f, "MULTI_TEAM_SIZE_FULL,\n");
+        }
+        else // default to full parties
+        {
+            fprintf(f, "#line %d\n", trainer->multi_team_line);
+            fprintf(f, "        .multiTeamSize = MULTI_TEAM_SIZE_FULL,\n");
+        }
+
+        if (trainer->macro_line)
+        {
+            fprintf(f, "#line %d\n", trainer->macro_line);
+            fprintf(f, "        ");
+            fprint_string(f, trainer->macro);
+            fprintf(f, "\n");
+        }
+
+        if (trainer->party_size_line)
+        {
+            fprintf(f, "#line %d\n", trainer->party_size_line);
+            fprintf(f, "        .partySize = %d,\n", trainer->party_size);
+            if (is_empty_string(trainer->copy_pool))
+            {
+                fprintf(f, "        .poolSize = %d,\n", trainer->pokemon_n);
+                fprintf(f, "        .party = (const struct TrainerMon[])\n");
+                fprintf(f, "        {\n");
+            }
+        }
+        else if (is_empty_string(trainer->copy_pool))
+        {
+            fprintf(f, "        .partySize = %d,\n", trainer->pokemon_n);
+            fprintf(f, "        .party = (const struct TrainerMon[])\n");
+            fprintf(f, "        {\n");
+        }
+
+        for (int j = 0; j < trainer->pokemon_n && is_empty_string(trainer->copy_pool); j++)
         {
             struct Pokemon *pokemon = &trainer->pokemon[j];
             fprintf(f, "            {\n");
@@ -1733,17 +2015,17 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
 
             switch (pokemon->gender)
             {
-            case GENDER_ANY:
-                fprintf(f, "            .gender = TRAINER_MON_RANDOM_GENDER,\n");
-                break;
-            case GENDER_MALE:
-                fprintf(f, "#line %d\n", pokemon->header_line);
-                fprintf(f, "            .gender = TRAINER_MON_MALE,\n");
-                break;
-            case GENDER_FEMALE:
-                fprintf(f, "#line %d\n", pokemon->header_line);
-                fprintf(f, "            .gender = TRAINER_MON_FEMALE,\n");
-                break;
+                case GENDER_ANY:
+                    fprintf(f, "            .gender = TRAINER_MON_RANDOM_GENDER,\n");
+                    break;
+                case GENDER_MALE:
+                    fprintf(f, "#line %d\n", pokemon->header_line);
+                    fprintf(f, "            .gender = TRAINER_MON_MALE,\n");
+                    break;
+                case GENDER_FEMALE:
+                    fprintf(f, "#line %d\n", pokemon->header_line);
+                    fprintf(f, "            .gender = TRAINER_MON_FEMALE,\n");
+                    break;
             }
 
             if (!is_empty_string(pokemon->item))
@@ -1788,8 +2070,12 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
             {
                 fprintf(f, "#line %d\n", pokemon->ball_line);
                 fprintf(f, "            .ball = ");
-                fprint_constant(f, "ITEM", pokemon->ball);
+                fprint_constant(f, "BALL", pokemon->ball);
                 fprintf(f, ",\n");
+            }
+            else
+            {
+                fprintf(f, "            .ball = POKEBALL_COUNT,\n");
             }
 
             if (pokemon->friendship_line)
@@ -1848,6 +2134,19 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
                 fprintf(f, ",\n");
             }
 
+            if (pokemon->tags_line)
+            {
+                fprintf(f, "#line %d\n", pokemon->tags_line);
+                fprintf(f, "            .tags = ");
+                for (int i = 0; i < pokemon->tags_n; i++)
+                {
+                    if (i > 0)
+                        fprintf(f, " | ");
+                    fprint_constant(f, "MON_POOL_TAG", pokemon->tags[i]);
+                }
+                fprintf(f, ",\n");
+            }
+
             if (pokemon->moves_n > 0)
             {
                 fprintf(f, "            .moves = {\n");
@@ -1863,7 +2162,8 @@ static void fprint_trainers(const char *output_path, FILE *f, struct Parsed *par
 
             fprintf(f, "            },\n");
         }
-        fprintf(f, "        },\n");
+        if (is_empty_string(trainer->copy_pool))
+            fprintf(f, "        },\n");
         fprintf(f, "    },\n");
     }
 }
